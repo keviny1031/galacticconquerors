@@ -5,15 +5,20 @@ import java.awt.geom.Rectangle2D;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import javax.swing.JFrame;
+import java.util.Timer;
+import java.util.TimerTask;
 
-import javax.swing.*;
+import javax.swing.JPanel;
+import javax.swing.ImageIcon;
 
-public class GalacticConquerors extends JFrame implements ActionListener {
+public class GalacticConquerors extends JFrame {
 
 	GamePanel game;
 	Alien enemy;
 	Timer myTimer;
-
+	moveTask movetask;
+	
 	public GalacticConquerors() {
 		super("Galactic Conquerors");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -22,17 +27,11 @@ public class GalacticConquerors extends JFrame implements ActionListener {
 		setLocationRelativeTo(null);
 		setLayout(new BorderLayout());
 		game = new GamePanel();// creating the panel
+		moveTask movetask = new moveTask(game);
 		add(game);// adding the panel
-		setVisible(true);
-		myTimer = new Timer(10, this);// trigger 10 times per second
-		myTimer.start();
-	}
-
-	public void actionPerformed(ActionEvent evt) {
-		if (game != null) {
-			game.move();
-			game.repaint();
-		}
+		setVisible(true);	
+		myTimer = new Timer("moveTimer");// trigger 10 times per second
+		myTimer.schedule(movetask ,0 , 10);
 	}
 
 	public static void main(String[] arguments) {
@@ -40,21 +39,22 @@ public class GalacticConquerors extends JFrame implements ActionListener {
 	}
 }// *************************************************************
 
-class GamePanel extends JPanel implements KeyListener, ActionListener {
+class GamePanel extends JPanel implements KeyListener {
 	private ArrayList<ArrayList<Alien>> enemyColumns = new ArrayList<ArrayList<Alien>>(5), enemyRows = new ArrayList<ArrayList<Alien>>(6);
 	private ArrayList<UFO> ufoList = new ArrayList<UFO>(1);
+	private boolean shot = false, validShot = true, ufo = false;
+	private TimerTask ufotask;
 	private String screen = "game";
-	private int shipx, shipy, bulletx, bullety, score = 0, level = 90;
+	private int shipx, shipy, bulletx, bullety, score = 0, level = 1, lives = 3;
 	private double shipFrame = 0.0;
 	private boolean[] keys;
-	private boolean shot = false, validShot = true, ufo = false;
 	private Font myFont = new Font("Rocket Propelled", Font.PLAIN, 35);
 	private Font titleFont = new Font("Digital tech", Font.PLAIN, 25);
 	private Font memeFont = new Font("Comic Sans MS", Font.PLAIN, 50);
 	private Image[] ship = new Image[6];
 	private Image back, bullet, nextScreen;
 	private boolean drawn = false;
-	private Timer tracker;
+	private Timer timer;
 
 	public GamePanel() {
 		setSize(686, 688);
@@ -69,8 +69,9 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 		keys = new boolean[KeyEvent.KEY_LAST + 1];
 		shipx = 320;
 		shipy = 600;
-		tracker = new Timer(15000, this);
-		tracker.start();
+		ufotask = new ufoTask(ufo, ufoList);
+		timer = new Timer("ufoTimer");
+		timer.schedule(ufotask, 5000, 5000);
 		addKeyListener(this);
 	}
 
@@ -89,11 +90,6 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 		for (int i = 0; i < 6; i++) {
 			enemyRows.add(new ArrayList<Alien>());
 		}
-/*		enemyRows.get(0).addAll(Arrays.asList(new Alien(5, 140, level), new Alien(5, 185, level),new Alien(5, 230, level), new Alien(5, 275, level), new Alien(5, 320, level), new Alien (5, 365, level)));
-		enemyRows.get(1).addAll(Arrays.asList(new Alien(50, 140, level), new Alien(50, 185, level),new Alien(50, 230, level), new Alien(50, 275, level), new Alien(50, 320, level), new Alien(50, 365, level)));
-		enemyRows.get(2).addAll(Arrays.asList(new Alien(95, 140, level), new Alien(95, 185, level),new Alien(95, 230, level), new Alien(95, 275, level), new Alien(95, 320, level), new Alien(95, 365, level)));
-		enemyRows.get(3).addAll(Arrays.asList(new Alien(140, 140, level), new Alien(140, 185, level),new Alien(140, 230, level), new Alien(140, 275, level), new Alien(320, 280, level), new Alien(140, 365, level)));
-		enemyRows.get(4).addAll(Arrays.asList(new Alien(185, 140, level), new Alien(185, 185, level),new Alien(185, 230, level), new Alien(185, 275, level), new Alien(325, 280, level), new Alien(185, 365, level)));*/
 		for (int i = 0; i < 6; i++) {
 			for (int j = 0; j < 5; j++) {
 				enemyRows.get(i).add(enemyColumns.get(j).get(i));
@@ -103,6 +99,9 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 
 	public void displayShip(Graphics g) {
 		g.drawImage(ship[(int) Math.floor(shipFrame)], shipx, shipy, this);
+		for (int i = 0; i < lives; i++) {
+			g.drawImage(ship[(int) Math.floor(shipFrame)], 513 + 45 * i, 40, this);
+		}
 		if (shipFrame + 0.15 >= 5.75) {
 			shipFrame = 0;
 		} else {
@@ -122,7 +121,6 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 							(int) enemyColumns.get(i).get(j).getX(), enemyColumns.get(i).get(j).getY(), this);
 						
 				}
-				//g.drawRect((int)enemyColumns.get(i).get(j).getX(), (int)enemyColumns.get(i).get(j).getY(),45,45);
 				enemyColumns.get(i).get(j).move(enemyColumns, level);
 			}
 		}
@@ -131,13 +129,16 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 	public void displayUFO(Graphics g) {
 		for (int i = 0; i < 4; i++) {
 			g.drawImage(ufoList.get(0).getIcon()[(int) Math.floor(ufoList.get(0).getFrame())], (int) ufoList.get(0).getX(), ufoList.get(0).getY(), this);
-			//g.drawRect((int)ufoList.get(0).getX(), (int)ufoList.get(0).getY(),100,30);
 			ufoList.get(0).move(level);
 		}
 		
 		if (ufoList.get(0).getX() <= -50) {
 			ufo = false;
 			ufoList.remove(ufoList.get(0));
+			timer = null;
+			timer = new Timer("ufoTimer");
+			ufotask = new ufoTask(ufo, ufoList);
+			timer.schedule(ufotask, 5000, 5000);
 		}
 	}
 
@@ -158,7 +159,13 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 		}
 		if (keys[KeyEvent.VK_ENTER]) {
 			if (screen == "next") {
-				tracker.restart();
+				ufo = false;
+				if (ufoList.size() > 0)
+					ufoList.remove(ufoList.get(0));
+				timer = null;
+				timer = new Timer("ufoTimer");
+				ufotask = new ufoTask(ufo, ufoList);
+				timer.schedule(ufotask, 5000, 5000);
 				screen = "game";
 			}
 		}
@@ -216,18 +223,18 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 		g2.drawImage(back, 0, 0, this);
 		g2.setStroke(new BasicStroke(3));
 		g2.setColor(new Color(255, 255, 255));
-		g2.drawRect(1, 85, 675, 560);
 		g2.setFont(myFont);
 		g2.drawString("SCORE", 50, 40);
-		g2.drawString("LIVES", 530, 40);
+		g2.drawString("LIVES", 530, 35);
 		g2.setFont(titleFont);
 		g2.drawString("LEVEL " + level, 265, 60);
 		displayShip(g);
 		displayAlien(g);
-		if (ufo == true) {
+		if (ufoList.size() > 0) {
 			displayUFO(g);
 		}
 		displayScore(g);
+		g2.drawRect(1, 85, 675, 560);
 	}
 
 	// all drawing code goes here
@@ -239,14 +246,17 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 				if (ufoList.size() > 0) {
 					ufoList.get(0).checkStatus(bulletx, bullety);
 					if (ufoList.get(0).checkAlive() == false) {
-						System.out.println("UFO DEAD!");
 						ufo = false;
+						ufoList.remove(ufoList.get(0));
+						timer = null;
+						timer = new Timer("ufoTimer");
+						ufotask = new ufoTask(ufo, ufoList);
+						timer.schedule(ufotask, 5000, 5000);
 						score += 150 * Math.pow(1.2, level - 1);
 						bulletx = shipx + 14;
 						bullety = shipy - 23;
 						shot = false; 
 						validShot = true;
-						ufoList.remove(ufoList.get(0));
 					}
 				}
 				
@@ -271,22 +281,20 @@ class GamePanel extends JPanel implements KeyListener, ActionListener {
 				}
 			}
 			if (enemyColumns.size() == 0) {
-				tracker.stop();
 				initEnemy();
 				level+=1;
+				ufo = false;
+				ufoList.remove(ufoList.get(0));
+				timer = null;
+				timer = new Timer("ufoTimer");
+				ufotask = new ufoTask(ufo, ufoList);
+				timer.schedule(ufotask, 5000, 5000);
 				screen = "next";
 			}
 		}
 		if (screen == "next") {
 			drawNext(g);
 		}
-	}
-
-	public void actionPerformed(ActionEvent arg0) {
-		System.out.println("Wow! A UFO!");
-		if (ufo == false)
-			ufoList.add(new UFO(700, 100));
-		ufo = true;
 	}
 }
 
@@ -469,6 +477,10 @@ class UFO{
 			alive = false;
 	}
 	
+	public void suicide() {
+		alive = false;
+	}
+	
 	public double getFrame() {
 		return frame;
 	}
@@ -493,4 +505,36 @@ class UFO{
 		return (int) hitbox.getWidth();
 	}
 	
+}
+
+class moveTask extends TimerTask{
+	private GamePanel game;
+	
+	public moveTask(GamePanel game) {
+		this.game = game;
+	}
+	
+	public void run() {
+		if (game != null) {
+			game.move();
+			game.repaint();
+		}
+	}
+}
+
+class ufoTask extends TimerTask{
+	private boolean ufo;
+	private ArrayList<UFO> ufoList;
+	
+	public ufoTask(boolean ufo, ArrayList<UFO> ufoList) {
+		this.ufo = ufo;
+		this.ufoList = ufoList;
+	}
+	
+	public void run() {
+		if (ufo == false) {
+			ufoList.add(new UFO(700, 100));
+		}
+		ufo = true;
+	}
 }
